@@ -83,10 +83,17 @@ def train_pointer_net(env, pn=None, mem=None, episodes=500, gamma=0.99, eps_star
             
             total_reward += reward
             
-            memory.append(Experience(torch.tensor([state], dtype=torch.float),
-                                     torch.tensor([[action]], dtype=torch.long),
-                                     torch.tensor([next_state], dtype=torch.float),
-                                     torch.tensor([reward], dtype=torch.float)))
+            # Assuming state, next_state are lists of NumPy arrays and action, reward are single values
+            # Convert state and next_state to a single tensor using torch.stack
+            state_tensor = torch.tensor(np.stack(state), dtype=torch.float)
+            next_state_tensor = torch.tensor(np.stack(next_state), dtype=torch.float)
+
+            # Append to memory using the tensors
+            memory.append(Experience(state_tensor,
+                                    torch.tensor([[action]], dtype=torch.long),  # Assuming action is a scalar
+                                    next_state_tensor,
+                                    torch.tensor([reward], dtype=torch.float)))  # Assuming reward is a scalar
+
             
             state = next_state
 
@@ -103,7 +110,7 @@ def select_action(state, policy_net, epsilon, n_actions):
     sample = random.random()
     if sample > epsilon:
         with torch.no_grad():
-            state_tensor = torch.tensor([state], dtype=torch.float).unsqueeze(0)  # Add batch dimension
+            state_tensor = torch.tensor(np.stack(state), dtype=torch.float).unsqueeze(0)  # Add batch dimension
             pointer_logits = policy_net(state_tensor)
             action_probs = F.softmax(pointer_logits.view(-1), dim=-1)
             action = torch.multinomial(action_probs, 1).item()
@@ -162,8 +169,8 @@ max_energy = 5
 
 env = ONTSEnv(job_priorities, energy_consumption, max_energy)
 env.reset()
-policy_net, memory = train_pointer_net(env, episodes=4000)
-policy_net, memory = train_pointer_net(env, policy_net, memory, episodes=4000)
+policy_net, memory = train_pointer_net(env, episodes=100)
+policy_net, memory = train_pointer_net(env, policy_net, memory, episodes=100)
 
 # Evaluating the model
 evaluate_model(env, policy_net, episodes=10)
