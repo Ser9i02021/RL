@@ -10,23 +10,26 @@ from torch_geometric.data import Data, Batch
 import pickle
 from torch_geometric.nn import GATConv
 
-class GAT(torch.nn.Module):
+class GNN(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
-        super(GAT, self).__init__()
-        self.conv1 = GATConv(in_channels, 128, heads=8, concat=True)
-        self.conv2 = GATConv(128 * 8, 64, heads=8, concat=True)
-        self.fc1 = torch.nn.Linear(64 * 8, 32)
+        super(GNN, self).__init__()
+        self.conv1 = GCNConv(in_channels, 128)
+        self.conv2 = GCNConv(128, 128)
+        self.conv3 = GCNConv(128, 64)
+        self.fc1 = torch.nn.Linear(64, 32)
         self.fc2 = torch.nn.Linear(32, out_channels)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
         x = self.conv1(x, edge_index)
-        x = F.elu(x)
+        x = F.relu(x)
         x = self.conv2(x, edge_index)
-        x = F.elu(x)
-        x = global_mean_pool(x, batch)
+        x = F.relu(x)
+        x = self.conv3(x, edge_index)
+        x = F.relu(x)
+        x = global_mean_pool(x, batch)  # global mean pooling
         x = self.fc1(x)
-        x = F.elu(x)
+        x = F.relu(x)
         x = self.fc2(x)
         return x
 
@@ -100,7 +103,7 @@ class ONTSEnv:
 
 def train_gnn(env, pn=None, mem=None, episodes=500, gamma=0.99, eps_start=1.0, eps_end=0.01, eps_decay=0.995, batch_size=128):
     n_actions = env.J * env.T
-    policy_net = GAT(in_channels=1, out_channels=n_actions) if pn is None else pn
+    policy_net = GNN(in_channels=1, out_channels=n_actions) if pn is None else pn
     optimizer = optim.Adam(policy_net.parameters())
     memory = deque(maxlen=10000) if mem is None else mem
     episode_durations = []
