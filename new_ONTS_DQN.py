@@ -143,7 +143,7 @@ def train(agent, env, episodes=2000):
         agent.update_epsilon()
         if episode % 10 == 0:
             agent.update_target_net()
-        print(f"Episode {episode+1}, Total Reward: {total_reward}")
+        #print(f"Episode {episode+1}, Total Reward: {total_reward}")
 
 job_priorities = np.array([3, 2, 1])
 energy_consumption = np.array([
