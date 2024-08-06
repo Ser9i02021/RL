@@ -68,6 +68,7 @@ class ONTSEnv:
         self.x__state = np.zeros((self.J, self.T), dtype=int)
         self.phi__state = np.zeros((self.J, self.T), dtype=int)
         self.steps_taken = 0
+        self.SoC_t = self.p
         return self.x__state.flatten()
     
     def step(self, action):
@@ -102,18 +103,19 @@ class ONTSEnv:
                 totalEnergyRequiredAtTimeStep_t += self.x__state[j][t] * self.q__energy_consumption_per_job[j]
             
             if totalEnergyRequiredAtTimeStep_t > self.r__energy_available_at_time_t[t] + (self.gamma * self.Vb):
-                print("Penalize for exceeding max energy available at that time step!")
-                return -100, True  # Penalize for exceeding max energy available at that time step
+                #print("Penalize for exceeding max energy available at that time step!")
+                return -1, False  # Penalize for exceeding max energy available at that time step
             
             exceedingPower = self.r__energy_available_at_time_t[t] - totalEnergyRequiredAtTimeStep_t
             i_t = exceedingPower / self.Vb
             self.SoC_t = self.SoC_t + (i_t * self.e) / (60 * self.Q)
+            #print("SoC: %f" % (self.SoC_t))
 
             if self.SoC_t > 1:
-                print("Penalize for exceeding max state of charge at that time step")
-                return -100, True  # Penalize for exceeding max state of charge at that time step
+                #print("Penalize for exceeding max state of charge at that time step")
+                return -1, False  # Penalize for exceeding max state of charge at that time step
             
-        print("All energy constraints satisfied!")
+        #print("All energy constraints satisfied!")
         return 0, False
 
     def check_job_constraints(self):
@@ -123,12 +125,12 @@ class ONTSEnv:
             # w_min, w_max ((w_min, w_max] is the interval a job can be active)
             for tw in range(self.w_min_per_job[j]):
                 if self.x__state[j, tw] == 1:
-                    print("Penalize for activating job %d at a disallowed time step (bellow min: %d)" % (j + 1, self.w_min_per_job[j] + 1))
+                    #print("Penalize for activating job %d at a disallowed time step (bellow min: %d)" % (j + 1, self.w_min_per_job[j] + 1))
                     acc_reward -= 1  # Penalize for activating a job at a disallowed time step (bellow min)
                 
             for tw in range(self.w_max_per_job[j], self.T):
                 if self.x__state[j, tw] == 1:
-                    print("Penalize for activating job %d at a disallowed time step (above max: %d)" % (j + 1, self.w_max_per_job[j]))
+                    #print("Penalize for activating job %d at a disallowed time step (above max: %d)" % (j + 1, self.w_max_per_job[j]))
                     acc_reward -= 1  # Penalize for activating a job at a disallowed time step (above max)
                 
             
@@ -137,10 +139,10 @@ class ONTSEnv:
             for t in range(self.T):
                 sum_l += self.phi__state[j, t]
             if sum_l < self.y_min_per_job[j]:
-                print("Penalize for job %d not having been executed at least 'y_min_per_job': %d times" % (j + 1, self.y_min_per_job[j]))
+                #print("Penalize for job %d not having been executed at least 'y_min_per_job': %d times" % (j + 1, self.y_min_per_job[j]))
                 acc_reward -= 1   # Penalize for a job not having been executed at least "y_min_per_job" times
             if sum_l > self.y_max_per_job[j]:
-                print("Penalize for job %d having been executed more than 'y_max_per_job': %d times" % (j + 1, self.y_max_per_job[j]))
+                #print("Penalize for job %d having been executed more than 'y_max_per_job': %d times" % (j + 1, self.y_max_per_job[j]))
                 acc_reward -= 1   # Penalize for a job having been executed more than "y_max_per_job" times
             
 
@@ -150,7 +152,7 @@ class ONTSEnv:
                 for tt in range(t, t + self.t_min_per_job[j]):
                     tt_sum += self.x__state[j, tt] 
                 if tt_sum < self.t_min_per_job[j] * self.phi__state[j, t]:
-                    print("Penalize for job %d not running continuosly for its minimum period to do that: %d" % (j + 1, self.t_min_per_job[j]))
+                    #print("Penalize for job %d not running continuosly for its minimum period to do that: %d" % (j + 1, self.t_min_per_job[j]))
                     acc_reward -= 1   # Penalize for a job not running continuosly for its minimum period to do that 
             
             for t in range(self.T - self.t_max_per_job[j]):
@@ -158,7 +160,7 @@ class ONTSEnv:
                 for tt in range(t, t + self.t_max_per_job[j] + 1):
                     tt_sum += self.x__state[j, tt]
                 if tt_sum > self.t_max_per_job[j]:
-                    print("Penalize for job %d running continuosly more than its maximum period to do that: %d" % (j + 1, self.t_max_per_job[j]))
+                    #print("Penalize for job %d running continuosly more than its maximum period to do that: %d" % (j + 1, self.t_max_per_job[j]))
                     acc_reward -= 1   # Penalize for a job running continuosly more than its maximum period to do that
                 
 
@@ -167,7 +169,7 @@ class ONTSEnv:
                 for l in range(t, self.T):
                     sum_l += self.x__state[j, l]
                 if sum_l < (self.T - t + 1) * self.phi__state[j, t]:
-                    print("Penalize for job %d..." % (j + 1))
+                    #print("Penalize for job %d..." % (j + 1))
                     acc_reward -= 1   # Penalize for a job...
                 
             
@@ -177,7 +179,7 @@ class ONTSEnv:
                 for l in range(t, t + self.p_min_per_job[j]):
                     sum_l += self.phi__state[j, l]
                 if sum_l > 1:
-                    print("Penalize for job %d not having been executed periodically for at least every 'p_min_per_job': %d time steps" % (j + 1, self.p_min_per_job[j]))
+                    #print("Penalize for job %d not having been executed periodically for at least every 'p_min_per_job': %d time steps" % (j + 1, self.p_min_per_job[j]))
                     acc_reward -= 1   # Penalize for a job not having been executed periodically for at least every "p_min_per_job" time steps
                 
             for t in range(self.T - self.p_max_per_job[j] + 1):
@@ -185,12 +187,12 @@ class ONTSEnv:
                 for l in range(t, t + self.p_max_per_job[j]):
                     sum_l += self.phi__state[j, l]
                 if sum_l < 1:
-                    print("Penalize for job %d having been executed periodically for more than every 'p_max_per_job': %d time steps" % (j + 1, self.p_max_per_job[j]))
+                    #print("Penalize for job %d having been executed periodically for more than every 'p_max_per_job': %d time steps" % (j + 1, self.p_max_per_job[j]))
                     acc_reward -= 1   # Penalize for a job having been executed periodically for more than every "p_max_per_job" time steps
     
         
-        if acc_reward == 0:
-            print("All job constraints satisfied!")
+        #if acc_reward == 0:
+            #print("All job constraints satisfied!")
         
         return acc_reward
             
@@ -205,7 +207,10 @@ class ONTSEnv:
             for j in range(self.J):
                 for t in range(self.T):
                     # Reward directly proportional to the priority and inversely proportional to the energy consumption of that job
-                    rewardSum += (self.u__job_priorities[j] * self.x__state[j, t]) * (self.r__energy_available_at_time_t[t] - self.q__energy_consumption_per_job[j])
+                    # Plus, it is downgraded if at least one restriction is not met
+                    if rewardSum == 0:
+                        rewardSum += (self.u__job_priorities[j] * self.x__state[j, t]) * (self.r__energy_available_at_time_t[t] - self.q__energy_consumption_per_job[j])
+
             return rewardSum, False
         
         return rewardSum, done
@@ -244,11 +249,12 @@ def train_gnn(env, pn=None, mem=None, episodes=500, gamma=0.99, eps_start=1.0, e
             epsilon = max(epsilon * eps_decay, eps_end)
             action = select_action_gnn(env, policy_net, epsilon)
             next_state, reward, done = env.step(action)
-            print("state:")
-            print(next_state)
-            print(env.phi__state)
-            print("episode: %d; reward: %f" % (episode, reward))
-            print()
+            '''if reward > 0:
+                print("state:")
+                print(next_state)
+                #print(env.phi__state)
+                print("episode: %d; reward: %f" % (episode, reward))
+                print()'''
             total_reward += reward
             memory.append(Experience(env.get_graph(), torch.tensor([[action]], dtype=torch.long), env.get_graph(), torch.tensor([reward], dtype=torch.float)))
             optimize_model_gnn(policy_net, optimizer, memory, gamma, batch_size)
@@ -323,19 +329,19 @@ u__job_priorities = np.array([3, 2, 1])
 q__energy_consumption_per_job = np.array([1, 2, 1])
 
 # Min and max times a job can execute
-y_min_per_job = [1, 2, 2] 
+y_min_per_job = [1, 1, 1] 
 y_max_per_job = [3, 4, 5]
 
 # Min and max periods for continuos execution per job
-t_min_per_job = [1, 2, 1]
-t_max_per_job = [3, 4, 2]
+t_min_per_job = [1, 1, 1]
+t_max_per_job = [3, 4, 3]
 
 # Min and max periodic execution time steps per job
 p_min_per_job = [1, 1, 1]
 p_max_per_job = [4, 5, 5]
 
 # Min and max time step a job is allowed to run
-w_min_per_job = [1, 2, 2]
+w_min_per_job = [0, 0, 0]
 w_max_per_job = [4, 5, 4]
 
 # Max energy solar panel can spend at a given time step
@@ -361,9 +367,9 @@ e = 0.9
 
 env = ONTSEnv(u__job_priorities, q__energy_consumption_per_job, y_min_per_job, y_max_per_job, t_min_per_job, t_max_per_job, p_min_per_job, p_max_per_job, w_min_per_job, w_max_per_job, r__energy_available_at_time_t, gamma, Vb, Q, p, e)
 env.reset()
-
+'''
 # Initial training
-policy_net, memory = train_gnn(env, episodes=100)
+policy_net, memory = train_gnn(env, episodes=1000)
 
 # Store GNN policy and memory into a binary file
 with open('policy.txt', 'wb') as file:
@@ -386,6 +392,6 @@ with open('policy.txt', 'wb') as file:
     pickle.dump(policy_net, file)
 with open('mem.txt', 'wb') as file:
     pickle.dump(memory, file)
-'''
+
 
 evaluate_gnn_model(env, policy_net, episodes=10)
