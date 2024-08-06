@@ -83,12 +83,12 @@ class ONTSEnv:
         for j in range(self.J):
             for t in range(self.T):
                 if t == 0:
-                    if self.x__state[j, 0] > self.phi__state[j, 0]:
-                        self.phi__state[j, 0] = 1
+                    if self.x__state[j, t] > self.phi__state[j, t]:
+                        self.phi__state[j, t] = 1
                 else:
                     if (self.x__state[j, t] - self.x__state[j, t-1]) > self.phi__state[j, t]:
                         self.phi__state[j, t] = 1
-                    if self.phi__state[j, t] >= (2 - self.x__state[j, t] - self.x__state[j, t-1]):
+                    if self.phi__state[j, t] > (2 - self.x__state[j, t] - self.x__state[j, t-1]):
                         self.phi__state[j, t] = 0
                 
                 if self.phi__state[j, t] > self.x__state[j, t]:
@@ -117,18 +117,19 @@ class ONTSEnv:
         return 0, False
 
     def check_job_constraints(self):
+        acc_reward = 0
         for j in range(self.J):
             
-            # w_min, w_max ([w_min, w_max] is the interval a job can be active)
+            # w_min, w_max ((w_min, w_max] is the interval a job can be active)
             for tw in range(self.w_min_per_job[j]):
                 if self.x__state[j, tw] == 1:
-                    print("Penalize for activating job %d at a disallowed time step (bellow min: %d)" % (j + 1, self.w_min_per_job[j]))
-                    return -1, False  # Penalize for activating a job at a disallowed time step (bellow min)
+                    print("Penalize for activating job %d at a disallowed time step (bellow min: %d)" % (j + 1, self.w_min_per_job[j] + 1))
+                    acc_reward -= 1  # Penalize for activating a job at a disallowed time step (bellow min)
                 
             for tw in range(self.w_max_per_job[j], self.T):
                 if self.x__state[j, tw] == 1:
                     print("Penalize for activating job %d at a disallowed time step (above max: %d)" % (j + 1, self.w_max_per_job[j]))
-                    return -1, False  # Penalize for activating a job at a disallowed time step (above max)
+                    acc_reward -= 1  # Penalize for activating a job at a disallowed time step (above max)
                 
             
             # y_min, y_max (Min and Max times a job can be active)
@@ -137,10 +138,10 @@ class ONTSEnv:
                 sum_l += self.phi__state[j, t]
             if sum_l < self.y_min_per_job[j]:
                 print("Penalize for job %d not having been executed at least 'y_min_per_job': %d times" % (j + 1, self.y_min_per_job[j]))
-                return -1, False   # Penalize for a job not having been executed at least "y_min_per_job" times
+                acc_reward -= 1   # Penalize for a job not having been executed at least "y_min_per_job" times
             if sum_l > self.y_max_per_job[j]:
                 print("Penalize for job %d having been executed more than 'y_max_per_job': %d times" % (j + 1, self.y_max_per_job[j]))
-                return -1, False   # Penalize for a job having been executed more than "y_max_per_job" times
+                acc_reward -= 1   # Penalize for a job having been executed more than "y_max_per_job" times
             
 
             # t_min, t_max (continuous job execution) 
@@ -150,7 +151,7 @@ class ONTSEnv:
                     tt_sum += self.x__state[j, tt] 
                 if tt_sum < self.t_min_per_job[j] * self.phi__state[j, t]:
                     print("Penalize for job %d not running continuosly for its minimum period to do that: %d" % (j + 1, self.t_min_per_job[j]))
-                    return -1, False   # Penalize for a job not running continuosly for its minimum period to do that 
+                    acc_reward -= 1   # Penalize for a job not running continuosly for its minimum period to do that 
             
             for t in range(self.T - self.t_max_per_job[j]):
                 tt_sum = 0
@@ -158,16 +159,16 @@ class ONTSEnv:
                     tt_sum += self.x__state[j, tt]
                 if tt_sum > self.t_max_per_job[j]:
                     print("Penalize for job %d running continuosly more than its maximum period to do that: %d" % (j + 1, self.t_max_per_job[j]))
-                    return -1, False   # Penalize for a job running continuosly more than its maximum period to do that
+                    acc_reward -= 1   # Penalize for a job running continuosly more than its maximum period to do that
                 
 
-            for t in range(self.T - self.t_min_per_job[j] + 2, self.T + 1):
+            for t in range(self.T - self.t_min_per_job[j] + 1, self.T):
                 sum_l = 0
-                for l in range(t, self.T + 1):
+                for l in range(t, self.T):
                     sum_l += self.x__state[j, l]
                 if sum_l < (self.T - t + 1) * self.phi__state[j, t]:
                     print("Penalize for job %d..." % (j + 1))
-                    return -1, False   # Penalize for a job...
+                    acc_reward -= 1   # Penalize for a job...
                 
             
             # p_min, p_max (periodic job execution)            
@@ -177,7 +178,7 @@ class ONTSEnv:
                     sum_l += self.phi__state[j, l]
                 if sum_l > 1:
                     print("Penalize for job %d not having been executed periodically for at least every 'p_min_per_job': %d time steps" % (j + 1, self.p_min_per_job[j]))
-                    return -1, False   # Penalize for a job not having been executed periodically for at least every "p_min_per_job" time steps
+                    acc_reward -= 1   # Penalize for a job not having been executed periodically for at least every "p_min_per_job" time steps
                 
             for t in range(self.T - self.p_max_per_job[j] + 1):
                 sum_l = 0
@@ -185,11 +186,13 @@ class ONTSEnv:
                     sum_l += self.phi__state[j, l]
                 if sum_l < 1:
                     print("Penalize for job %d having been executed periodically for more than every 'p_max_per_job': %d time steps" % (j + 1, self.p_max_per_job[j]))
-                    return -1, False   # Penalize for a job having been executed periodically for more than every "p_max_per_job" time steps
+                    acc_reward -= 1   # Penalize for a job having been executed periodically for more than every "p_max_per_job" time steps
     
         
-        print("All job constraints satisfied!")
-        return 0, False
+        if acc_reward == 0:
+            print("All job constraints satisfied!")
+        
+        return acc_reward
             
     
     def calculate_reward(self):
@@ -197,14 +200,13 @@ class ONTSEnv:
         reward, done = self.check_energy_constraints()
         rewardSum += reward        
         if not done:
-            reward, done = self.check_job_constraints()
+            reward = self.check_job_constraints()
             rewardSum += reward
-            if not done:
-                for j in range(self.J):
-                    for t in range(self.T):
-                        # Reward directly proportional to the priority and inversely proportional to the energy consumption of that job
-                        rewardSum += (self.u__job_priorities[j] * self.x__state[j, t]) * (self.r__energy_available_at_time_t[t] - self.q__energy_consumption_per_job[j])
-                return rewardSum, False
+            for j in range(self.J):
+                for t in range(self.T):
+                    # Reward directly proportional to the priority and inversely proportional to the energy consumption of that job
+                    rewardSum += (self.u__job_priorities[j] * self.x__state[j, t]) * (self.r__energy_available_at_time_t[t] - self.q__energy_consumption_per_job[j])
+            return rewardSum, False
         
         return rewardSum, done
 
