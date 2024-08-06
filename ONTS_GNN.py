@@ -363,7 +363,7 @@ env = ONTSEnv(u__job_priorities, q__energy_consumption_per_job, y_min_per_job, y
 env.reset()
 
 # Initial training
-policy_net, memory = train_gnn(env, episodes=10)
+policy_net, memory = train_gnn(env, episodes=100)
 
 # Store GNN policy and memory into a binary file
 with open('policy.txt', 'wb') as file:
