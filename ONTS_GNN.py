@@ -367,7 +367,7 @@ e = 0.9
 
 env = ONTSEnv(u__job_priorities, q__energy_consumption_per_job, y_min_per_job, y_max_per_job, t_min_per_job, t_max_per_job, p_min_per_job, p_max_per_job, w_min_per_job, w_max_per_job, r__energy_available_at_time_t, gamma, Vb, Q, p, e)
 env.reset()
-'''
+
 # Initial training
 policy_net, memory = train_gnn(env, episodes=1000)
 
@@ -392,6 +392,6 @@ with open('policy.txt', 'wb') as file:
     pickle.dump(policy_net, file)
 with open('mem.txt', 'wb') as file:
     pickle.dump(memory, file)
-
+'''
 
 evaluate_gnn_model(env, policy_net, episodes=10)
