@@ -145,7 +145,7 @@ class ONTSEnv:
                 #print("Penalize for job %d having been executed more than 'y_max_per_job': %d times" % (j + 1, self.y_max_per_job[j]))
                 acc_reward -= 1   # Penalize for a job having been executed more than "y_max_per_job" times
             
-
+        
             # t_min, t_max (continuous job execution) 
             for t in range(self.T - self.t_min_per_job[j] + 1):
                 tt_sum = 0
@@ -207,9 +207,9 @@ class ONTSEnv:
             for j in range(self.J):
                 for t in range(self.T):
                     # Reward directly proportional to the priority and inversely proportional to the energy consumption of that job
-                    # Plus, it is downgraded if at least one restriction is not met
+                    # and only positive if all restrictions are met
                     if rewardSum == 0:
-                        rewardSum += (self.u__job_priorities[j] * self.x__state[j, t]) * (self.r__energy_available_at_time_t[t] - self.q__energy_consumption_per_job[j])
+                        rewardSum += 10 * (self.u__job_priorities[j] * self.x__state[j, t]) * (self.r__energy_available_at_time_t[t] - self.q__energy_consumption_per_job[j])
 
             return rewardSum, False
         
@@ -293,7 +293,9 @@ def optimize_model_gnn(policy_net, optimizer, memory, gamma, batch_size):
     next_state_values = policy_net(next_state_batch).max(1)[0].detach()
     expected_state_action_values = (next_state_values * gamma) + reward_batch
 
-    loss = F.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+    # Change from MSE loss to Huber loss (less sensitive to outliers)
+    loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
